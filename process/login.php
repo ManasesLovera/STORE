@@ -1,41 +1,76 @@
 <?php
-    session_start();
-    include '../library/configServer.php';
-    include '../library/consulSQL.php';
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "VISANA";
 
-    $nombre=consultasSQL::clean_string($_POST['nombre-login']);
-    $clave=consultasSQL::clean_string(md5($_POST['clave-login']));
-    $radio=consultasSQL::clean_string($_POST['optionsRadios']);
-    if($nombre!="" && $clave!=""){
-        if($radio=="option2"){
-          $verAdmin=ejecutarSQL::consultar("SELECT * FROM administrador WHERE Nombre='$nombre' AND Clave='$clave'");
-            $AdminC=mysqli_num_rows($verAdmin);
-            if($AdminC>0){
-                $filaU=mysqli_fetch_array($verAdmin, MYSQLI_ASSOC);
-                $_SESSION['nombreAdmin']=$nombre;
-                $_SESSION['claveAdmin']=$clave;
-                $_SESSION['UserType']="Admin";
-                $_SESSION['adminID']=$filaU['id'];
-                echo '<script> location.href="index.php"; </script>';
-            }else{
-              echo 'Error nombre o contraseña invalido';
-            }
-        }
-        if($radio=="option1"){
-            $verUser=ejecutarSQL::consultar("SELECT * FROM cliente WHERE Nombre='$nombre' AND Clave='$clave'");
-            $filaU=mysqli_fetch_array($verUser, MYSQLI_ASSOC);
-            $UserC=mysqli_num_rows($verUser);
-            if($UserC>0){
-                $_SESSION['nombreUser']=$nombre;
-                $_SESSION['claveUser']=$clave;
-                $_SESSION['UserType']="User";
-                $_SESSION['UserNIT']=$filaU['NIT'];
-                echo '<script> location.href="index.php"; </script>';
-            }else{
-                echo 'Error nombre o contraseña invalido';
-            }
-        }
+$conn = new mysqli($servername, $username, $password, $dbname);
 
-    }else{
-        echo 'Error campo vacío<br>Intente nuevamente';
+session_start();
+require_once '../library/configServer.php';
+require_once '../library/consulSQL.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/VISANA/logic/helpers.php'; // Para usar funciones comunes como limpiar cadenas.
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $nombre = consultasSQL::clean_string($_POST['nombre-login'] ?? '');
+    $clave = $_POST['clave-login'] ?? '';
+    $radio = consultasSQL::clean_string($_POST['optionsRadios'] ?? '');
+
+    if (!empty($nombre) && !empty($clave)) {
+        if ($radio === "option2") { // Login para administrador
+            $query = "SELECT * FROM administrador WHERE Nombre = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param('s', $nombre);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0) {
+                $admin = $result->fetch_assoc();
+                if (password_verify($clave, $admin['Clave'])) {
+                    $_SESSION['nombreAdmin'] = $admin['Nombre'];
+                    $_SESSION['UserType'] = "Admin";
+                    $_SESSION['adminID'] = $admin['id'];
+                    header("Location: ../index.php");
+                    exit();
+                } else {
+                    $_SESSION['login_error'] = "Contraseña incorrecta para administrador.";
+                }
+            } else {
+                $_SESSION['login_error'] = "Administrador no encontrado.";
+            }
+        } elseif ($radio === "option1") { // Login para cliente
+            $query = "SELECT * FROM cliente WHERE Usuario = ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param('s', $nombre);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+                if (password_verify($clave, $user['Clave'])) {
+                    $_SESSION['nombreUser'] = $user['Usuario'];
+                    $_SESSION['UserType'] = "User";
+                    $_SESSION['UserNIT'] = $user['NIT'];
+                    header("Location: ../index.php");
+                    exit();
+                } else {
+                    $_SESSION['login_error'] = "Contraseña incorrecta para cliente.";
+                }
+            } else {
+                $_SESSION['login_error'] = "Usuario no encontrado.";
+            }
+        } else {
+            $_SESSION['login_error'] = "Opción de inicio de sesión no válida.";
+        }
+    } else {
+        $_SESSION['login_error'] = "Por favor, complete todos los campos.";
     }
+
+    // Si llega aquí, hubo un error
+    header("Location: ../login.php");
+    exit();
+} else {
+    header("Location: ../login.php");
+    exit();
+}
+?>
