@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             if ($result->num_rows > 0) {
                 $admin = $result->fetch_assoc();
-                if (password_verify($clave, $admin['Clave'])) {
+                if ($clave == $admin['Clave']) {
                     $_SESSION['nombreAdmin'] = $admin['Nombre'];
                     $_SESSION['UserType'] = "Admin";
                     $_SESSION['adminID'] = $admin['id'];
